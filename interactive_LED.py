@@ -3,7 +3,7 @@ import numpy as np
 import math
 import pyaudio
 # import time
-# import threading
+import threading
 import numpy as np
 
 CHUNK = 1024
@@ -62,8 +62,6 @@ def listenRoutine():
         max_index = np.argmax(magnitude)
         freq = RATE * max_index / len(audio_fft)
 
-        print(freq , "Hz")
-
     stream.stop_stream()
     stream.close()
 
@@ -76,7 +74,9 @@ def displayColorRoutine():
     image = np.zeros((width, height, 3), dtype=np.uint8)
 
     while continueDisplay: 
-        frequency_mapper(freq)
+        if(freq > 0):
+            frequency_mapper(freq)
+        print(freq , "Hz")
         color = (Red, Green, Blue)
         cv2.rectangle(image, (x, y), (x + width, y + height), color, -1)
         cv2.imshow("Image", image)
@@ -85,5 +85,8 @@ def displayColorRoutine():
 
     cv2.destroyAllWindows()
     
+listenThread = threading.Thread(target=listenRoutine)
+listenThread.start()
 displayColorRoutine()
+listenThread.join()
 # listenRoutine()
