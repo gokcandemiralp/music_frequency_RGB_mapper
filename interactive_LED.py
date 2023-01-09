@@ -8,15 +8,17 @@ import numpy as np
 
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
-CHANNELS = 1
 RATE = 40960
-RECORD_SECONDS = 0.025
+RECORD_MS = 25
 
-freq = 25.96
 continueDisplay = True
 Red = 0
 Green = 0
 Blue = 0
+
+queueHead = 0
+queueSize = 5
+freqQueue = [25.96,25.96,25.96,25.96,25.96]
 
 def saturate(temp_color):
     if(temp_color<0):
@@ -25,6 +27,11 @@ def saturate(temp_color):
         return 255
     else:
         return 255*temp_color
+
+def pushQueue(freq):
+    global freqQueue, queueHead, queueSize
+    freqQueue[queueHead] = freq
+    queueHead = (queueHead + 1) % queueSize
 
 def frequency_mapper(freq):
     global Red, Green, Blue
@@ -40,17 +47,22 @@ def frequency_mapper(freq):
     Blue = saturate(temp_B) # for E note
 
 def listenRoutine():
-    global freq, continueDisplay
+    global continueDisplay
     p = pyaudio.PyAudio()
+    for i in range(p.get_device_count()):
+        dev = p.get_device_info_by_index(i)
+        if (dev['name'] == 'MacBook Pro Speakers' and dev['hostApi'] == 0):
+            dev_index = dev['index'] # Find device index
+    
     stream = p.open(format=FORMAT,
-                    channels=CHANNELS,
+                    channels=dev_index,
                     rate=RATE,
                     input=True,
                     frames_per_buffer=CHUNK)
 
     while continueDisplay: 
         frames = []
-        for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+        for i in range(0, int(RATE / CHUNK * (RECORD_MS/1000))):
             data = stream.read(CHUNK)
             frames.append(data)
 
@@ -60,33 +72,34 @@ def listenRoutine():
 
         magnitude = np.abs(audio_fft)
         max_index = np.argmax(magnitude)
-        freq = RATE * max_index / len(audio_fft)
+        pushQueue(RATE * max_index / len(audio_fft))
 
     stream.stop_stream()
     stream.close()
 
 def displayColorRoutine():
-    global freq, continueDisplay, Red, Green, Blue
+    global continueDisplay, Red, Green, Blue
     width = 400
     height = 400
     x = 0
     y = 0
     image = np.zeros((width, height, 3), dtype=np.uint8)
 
-    while continueDisplay: 
+    while continueDisplay:
+        freq = sum(freqQueue)/queueSize
         if(freq > 0):
             frequency_mapper(freq)
         print(freq , "Hz")
         color = (Red, Green, Blue)
         cv2.rectangle(image, (x, y), (x + width, y + height), color, -1)
         cv2.imshow("Image", image)
-        if(cv2.waitKey(25) != -1):
+        if(cv2.waitKey(RECORD_MS) != -1):
             continueDisplay = 0
 
     cv2.destroyAllWindows()
-    
+
 listenThread = threading.Thread(target=listenRoutine)
 listenThread.start()
 displayColorRoutine()
 listenThread.join()
-# listenRoutine()
+listenRoutine()
