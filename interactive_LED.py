@@ -16,9 +16,35 @@ Red = 0
 Green = 0
 Blue = 0
 
+QUEUESIZE = 5
+OUTLIERFREQS = 2
+SAMPLEFREQS = QUEUESIZE - OUTLIERFREQS
 queueHead = 0
-queueSize = 5
 freqQueue = [25.96,25.96,25.96,25.96,25.96]
+
+def pushQueue(freq):
+    global freqQueue, queueHead
+    freqQueue[queueHead] = freq
+    queueHead = (queueHead + 1) % QUEUESIZE
+
+def purifyFreq():
+    global freqQueue, queueHead
+    purestDiff = RATE
+    purestIndex = 0
+    for currentIndex in range(QUEUESIZE):
+        total = 0
+        for groupIndex in range(SAMPLEFREQS):
+            cmprPairIndx_0 = (groupIndex + currentIndex)%QUEUESIZE
+            cmprPairIndx_1 = (((groupIndex+1)%SAMPLEFREQS + currentIndex))%QUEUESIZE
+            #print(cmprPairIndx_0,"-",cmprPairIndx_1)
+            total += abs(freqQueue[cmprPairIndx_0]-freqQueue[cmprPairIndx_1])
+            if(total/SAMPLEFREQS < purestDiff):
+                purestDiff = total/SAMPLEFREQS
+                purestIndex = currentIndex
+    ansTotal = 0
+    for i in range(SAMPLEFREQS):
+        ansTotal += freqQueue[(i+purestIndex)%QUEUESIZE]
+    return ansTotal/SAMPLEFREQS
 
 def saturate(temp_color):
     if(temp_color<0):
@@ -27,11 +53,6 @@ def saturate(temp_color):
         return 255
     else:
         return 255*temp_color
-
-def pushQueue(freq):
-    global freqQueue, queueHead, queueSize
-    freqQueue[queueHead] = freq
-    queueHead = (queueHead + 1) % queueSize
 
 def frequency_mapper(freq):
     global Red, Green, Blue
@@ -86,7 +107,7 @@ def displayColorRoutine():
     image = np.zeros((width, height, 3), dtype=np.uint8)
 
     while continueDisplay:
-        freq = sum(freqQueue)/queueSize
+        freq = purifyFreq()
         if(freq > 0):
             frequency_mapper(freq)
         print(freq , "Hz")
